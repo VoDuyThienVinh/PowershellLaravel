@@ -572,7 +572,7 @@ jobs:
       - run: echo "Start test databases"
       - run: docker-compose -f docker-compose.yml up -d
       - run: docker-compose -f docker-compose.yml exec app composer install
-      - run: docker-compose -f docker-compose.yml exec app php artisan test
+      - run: docker-compose -f docker-compose.yml exec app php artisan make:test UserTest --unit
           
   
   test_unit:
@@ -587,7 +587,7 @@ jobs:
       - run: echo "Start test_unit"
       - run: docker-compose -f docker-compose.yml up -d
       - run: docker-compose -f docker-compose.yml exec app composer install
-      - run: docker-compose -f docker-compose.yml exec app php artisan test
+      - run: docker-compose -f docker-compose.yml exec app php artisan make:test UserTest --unit
       - run: docker-compose -f docker-compose.yml down
   
   test_coverage:
@@ -611,7 +611,7 @@ jobs:
 
       - run: 
           name: "Running test coverage ..."
-          command: docker-compose -f docker-compose.yml exec app php artisan test
+          command: docker-compose -f docker-compose.yml exec app php artisan make:test UserTest --unit
     
   test_php:
     machine: 
@@ -625,7 +625,7 @@ jobs:
       - run: echo "Start test php"
       - run: docker-compose -f docker-compose.yml up -d
       - run: docker-compose -f docker-compose.yml exec app composer install
-      - run: docker-compose -f docker-compose.yml exec app php artisan test
+      - run: docker-compose -f docker-compose.yml exec app php artisan make:test UserTest --unit
   
   production:
     machine: 
