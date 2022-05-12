@@ -10,7 +10,11 @@ New-Item -Path ./src/.docker -ItemType directory -Name "db"
 New-Item -Path ./src/.docker -ItemType directory -Name "nginx"
 New-Item -Path ./src/.docker/nginx -ItemType file -Name "nginx.conf"
 New-Item -Path ./src/.docker -ItemType directory -Name "phpmyadmin"
+New-Item -Path ./src/.docker -ItemType directory -Name "script"
+New-Item -Path ./src/.docker/script -ItemType file -Name "appStart.sh"
+New-Item -Path ./src -ItemType file -Name ".eslintrc.js"
 New-Item -Path ./src -ItemType file -Name ".env"
+
 
 New-Item -Path . -ItemType file -Name "Dockerfile"
 New-Item -Path . -ItemType file -Name "docker-compose.yml"
@@ -33,6 +37,114 @@ Remove-Item -Path ./src/.gitignore -Force
 
 #Clear Content database.php
 Clear-Content -Path ./src/config/database.php -Force
+
+#Clear Content package.json
+Clear-Content -Path ./src/package.json
+
+#Add content appStart.sh
+$appStart = @'
+#!/bin/sh
+echo "This is script install eslint, install PHP check convetion"
+pwd
+
+composer install
+php artisan key:generate
+
+# Install eslint
+echo "Starting install eslint"
+npm --version
+npm install
+#npm install eslint --save-dev
+
+# Install code php_codesniffer
+composer global require "squizlabs/php_codesniffer=*"
+composer global config bin-dir --absolute
+export PATH="/root/.composer/vendor/bin:$PATH"
+source ~/.bashrc
+
+# Install code php_codesnifer Framgia
+cd ~/.composer/vendor/squizlabs/php_codesniffer/src/Standards
+git clone https://github.com/wataridori/framgia-php-codesniffer FramgiaPHPCS
+phpcs --config-set installed_paths ~/.composer/vendor/squizlabs/php_codesniffer/src/Standards/FramgiaPHPCS
+
+
+php-fpm # Phai co cai nay neu ko nginx ko nhan
+'@
+
+Add-Content -Path ./src/.docker/script/appStart.sh -Value $appStart
+
+#Add content eslintFile
+$eslintJS = @'
+module.exports = {
+	'env': {
+		'browser': true,
+		'commonjs': true,
+		'es2021': true
+	},
+	'extends': 'eslint:recommended',
+	'parserOptions': {
+		'ecmaVersion': 'latest'
+	},
+	'rules': {
+		'indent': [
+			'error',
+			'tab'
+		],
+		'linebreak-style': [
+			'error',
+			'windows'
+		],
+		'quotes': [
+			'error',
+			'single'
+		],
+		'semi': [
+			'error',
+			'always'
+		]
+	}
+};
+'@
+
+Add-Content -Path ./src/.eslintrc.js -Value $eslintJS
+
+
+#Add content package.json
+$packageJson = @'
+{
+    "private": true,
+    "scripts": {
+        "dev": "npm run development",
+        "development": "cross-env NODE_ENV=development node_modules/webpack/bin/webpack.js --progress --hide-modules --config=node_modules/laravel-mix/setup/webpack.config.js",
+        "watch": "npm run development -- --watch",
+        "watch-poll": "npm run watch -- --watch-poll",
+        "hot": "cross-env NODE_ENV=development node_modules/webpack-dev-server/bin/webpack-dev-server.js --inline --hot --config=node_modules/laravel-mix/setup/webpack.config.js",
+        "prod": "npm run production",
+        "production": "cross-env NODE_ENV=production node_modules/webpack/bin/webpack.js --no-progress --hide-modules --config=node_modules/laravel-mix/setup/webpack.config.js",
+
+        "eslint": "eslint 'resources/js/**/*.{js,vue}'",
+        "eslint:fix": "eslint 'resources/js/**/*.{js,vue}' --fix",
+        "eslint:watch": "chokidar 'resources/js/**/*.js' 'resources/js/**/*.vue' -c 'npm run eslint:fix'"
+
+    },
+    "devDependencies": {
+        "axios": "^0.19",
+        "bootstrap": "^4.1.0",
+        "cross-env": "^5.1",
+        "eslint": "^8.15.0",
+        "jquery": "^3.2",
+        "laravel-mix": "^4.0.7",
+        "lodash": "^4.17.13",
+        "popper.js": "^1.12",
+        "resolve-url-loader": "^2.3.1",
+        "sass": "^1.15.2",
+        "sass-loader": "^7.1.0",
+        "vue": "^2.5.17"
+    }
+}
+'@
+
+Add-Content -Path ./src/package.json -Value $packageJson
 
 #databases.php Add Content Databases 
 $databases = @"
@@ -342,12 +454,40 @@ Add-Content -Path ./src/.docker/nginx/nginx.conf -Value $nginxconf
 
 #Dockerfile
 $dockerfile = @'
-FROM php:7.4-fpm-alpine as base
+FROM php:7.4-fpm as base
 WORKDIR /var/www/html
 #Install extensions
-RUN docker-php-ext-install pdo_mysql
+# Install dependencies
+FROM php:7.4-fpm as base
+WORKDIR /var/www/html
 
 FROM base as dev 
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    locales \
+    zip \
+    jpegoptim optipng pngquant gifsicle \
+    vim \
+    unzip \
+    git \
+    curl
+    
+# Clear cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Node
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
+RUN apt-get install -y nodejs 
+
+
+# Install pdo_mysql
+RUN docker-php-ext-install pdo_mysql
+
+# Install composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 COPY ./src .
 
@@ -371,6 +511,7 @@ services:
     working_dir: /var/www/html
     volumes: 
       - ./src/:/var/www/html
+    entrypoint: ./.docker/script/appStart.sh
     healthcheck:
       test: wget --quiet --tries=1 --spider http://localhost:8000 || exit 1z
       interval: 1m30s
@@ -441,7 +582,7 @@ services:
       - app-network
     depends_on:
       - mariadb
-
+        
 # NETWORK
 networks:
   app-network:
@@ -685,4 +826,3 @@ workflows:
 "@
 
 Add-Content -Path ./.circleci/config.yml -Value $circleConfig
-
